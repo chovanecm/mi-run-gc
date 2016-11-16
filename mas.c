@@ -17,7 +17,11 @@ const int instructionSet[INSTR_SET_SIZE] = { NOP, OOK };
 #define CP_SIZE 3
 const char constantPool[CP_SIZE][TEXT_SIZE] = {"ook", "oook", "ook!"};
 
+/**
+ * How often we should print the report
+ */
 #define REPORT_AFTER 10
+
 
 typedef struct DataStructure Data;
 
@@ -30,19 +34,26 @@ struct DataStructure {
 };
 
 Data* heap[HEAP_SIZE];
+/***
+ * Pointer to live objects
+ */
 Data* root[ROOT_SIZE];
 
 int allocatedRecords = 0;
 
 void reportOutOfMemoryAndExit() {
-    fprintf(stderr, "Out of memory, bye!");
+    fprintf(stderr, "Out of memory, bye!\n");
     exit(1);
 };
 
 void reportHeapStatus() {
   printf("\nalloc:\t%d\nfree:\t%d\nMAX:\t%d\n", allocatedRecords, HEAP_SIZE-allocatedRecords, HEAP_SIZE);
 };
-
+/**
+ * Functiono used for reporting
+ * @param data
+ * @return
+ */
 int getTailLength(Data* data) {
     int result = 0;
     while ((data = data->next) != NULL) {
@@ -67,13 +78,46 @@ void reportRoots() {
     }
 };
 
-int findFreeSlotInHeap(){
-    for (int i=0; i<HEAP_SIZE; i++) {
-        if (heap[i] == 0) {
-            return i;
+void mark(Data* data) {
+    if (data == NULL || data->marked) {
+        return;
+    }
+    data->marked = true;
+    mark(data->next);
+}
+
+void sweep() {
+    for (int i = 0; i < HEAP_SIZE; i++) {
+        if (heap[i] == NULL)
+            continue;
+        if (heap[i]->marked) {
+            heap[i]->marked = false;
+        } else {
+            free(heap[i]);
+            heap[i] = NULL;
+            allocatedRecords--;
         }
     }
+}
+void markAndSweep() {
+    for (int i = 0; i < ROOT_SIZE; i++) {
+        mark(root[i]);
+    }
+    sweep();
+}
+
+int findFreeSlotInHeap(){
+    for (int attempt = 0; attempt < 2; attempt++) {
+        for (int i = 0; i < HEAP_SIZE; i++) {
+            if (heap[i] == 0) {
+                return i;
+            }
+        }
+        //when nothing found, run mark and sweep and try again
+        markAndSweep();
+    }
     reportOutOfMemoryAndExit();
+    return -1;
 };
 
 Data* allocateNewData() {
@@ -85,6 +129,7 @@ Data* allocateNewData() {
     Data* newData = (Data*)malloc(sizeof(Data));
     if (newData == NULL) {
         reportOutOfMemoryAndExit();
+        return NULL;
     }
 
     // book the record
@@ -122,6 +167,8 @@ void singleProgramStep() {
           break;
       case OOK: // do something
           ook();
+          break;
+      default:
           break;
   };
 }
